@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Mail, Phone, MapPin, Sparkles } from "lucide-react";
+import { axiosInstance } from "@/lib/axiosInstance";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -24,10 +25,13 @@ export default function ContactPage() {
   });
 
   const onSubmit = async (data: ContactFormValues) => {
-    // Simulate API request
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast.success("Thank you! Your message has been sent successfully.");
-    reset();
+    try {
+      await axiosInstance.post("/messages", data);
+      toast.success("Thank you! Your message has been sent successfully.");
+      reset();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send message. Please try again.");
+    }
   };
 
   return (
