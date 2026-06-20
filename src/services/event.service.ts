@@ -33,4 +33,14 @@ export const updateEvent = async (eventId: string, eventData: Partial<CreateEven
   return response.data;
 };
 
+export const updateEventStatus = async (eventId: string, status: "APPROVED" | "REJECTED", rejectionReason?: string) => {
+  const response = await axiosInstance.patch(`/events/${eventId}/status`, { status, rejectionReason });
+  return response.data;
+};
+
+export const getAdminStats = async () => {
+  const response = await axiosInstance.get("/events/admin/stats");
+  return response.data?.data;
+};
+
 

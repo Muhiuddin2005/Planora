@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { jwtDecode } from "jwt-decode";
 import Link from "next/link";
+import Swal from "sweetalert2";
 
 interface ReviewSectionProps {
   eventId: string;
@@ -326,7 +327,25 @@ export default function ReviewSection({ eventId }: ReviewSectionProps) {
                                 </button>
                                 <button 
                                   onClick={() => {
-                                    if (confirm("Delete this review?")) deleteMutation.mutate(review.id);
+                                    Swal.fire({
+                                      title: "Delete Review?",
+                                      text: "Are you sure you want to delete this review?",
+                                      icon: "warning",
+                                      showCancelButton: true,
+                                      confirmButtonColor: "#4f46e5",
+                                      cancelButtonColor: "#ef4444",
+                                      confirmButtonText: "Yes, delete review!",
+                                      background: "#0f172a",
+                                      color: "#f8fafc",
+                                      iconColor: "#f59e0b",
+                                      customClass: {
+                                        popup: "rounded-2xl border border-slate-800"
+                                      }
+                                    }).then((result) => {
+                                      if (result.isConfirmed) {
+                                        deleteMutation.mutate(review.id);
+                                      }
+                                    });
                                   }}
                                   disabled={deleteMutation.isPending}
                                   className="text-xs flex items-center gap-0.5 text-red-500 hover:text-red-700 font-medium transition-colors cursor-pointer border-none bg-transparent p-0"

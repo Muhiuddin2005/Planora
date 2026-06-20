@@ -292,19 +292,19 @@ export default function EventDetailsClient({ event: initialEvent }: { event: any
         </div>
       </div>
  
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
           <div className="prose prose-slate max-w-none">
             <h2 className="text-2xl font-bold text-slate-950 mb-3">About This Event</h2>
-            <p className="text-slate-600 text-base leading-relaxed whitespace-pre-line">
+            <p className="text-slate-600 text-base leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
               {finalDescription}
             </p>
           </div>
         </div>
  
         {/* Sidebar Info & Action Button */}
-        <div className="space-y-6">
+        <div className="space-y-6 w-full">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-6 shadow-sm">
             <div>
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Pricing & Visibility</h3>
