@@ -2,38 +2,74 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPublicEvents, deleteEvent } from "@/services/event.service";
+import { getPublicEvents, deleteEvent, updateEventStatus, getAdminStats } from "@/services/event.service";
 import { axiosInstance } from "@/lib/axiosInstance";
-import { ShieldAlert, Trash2, AlertOctagon } from "lucide-react";
+import {
+  ShieldAlert, Trash2, AlertOctagon, Users, Calendar,
+  DollarSign, TrendingUp, CheckCircle2, XCircle, Clock,
+  BarChart2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import UserManagementTable from "@/components/dashboard/UserManagementTable";
+import AdminMessagesTable from "@/components/dashboard/AdminMessagesTable";
+import AuditLogsTable from "@/components/dashboard/AuditLogsTable";
 import { jwtDecode } from "jwt-decode";
+import Swal from "sweetalert2";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
+
+// ---------- Stat Card ----------
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color,
+}: {
+  icon: any;
+  label: string;
+  value: string | number;
+  sub?: string;
+  color: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
+      <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-extrabold text-slate-900 mt-0.5 leading-none">{value}</p>
+        {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+const PIE_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"];
 
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
   const [countdown, setCountdown] = useState(5);
+  const [activeTab, setActiveTab] = useState<"overview" | "events" | "users" | "messages" | "logs">("overview");
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (token) {
       try {
         const decoded = jwtDecode<{ role: string; userId: string }>(token);
-        
-        if (decoded.role !== "ADMIN") {
+        setUserRole(decoded.role);
+        if (decoded.role !== "ADMIN" && decoded.role !== "MODERATOR") {
           setIsUnauthorized(true);
-          
-          // Report the violation to the backend
           axiosInstance.post("/users/report-violation").then((res) => {
-            const userStatus = res.data.data.status;
-            if (userStatus === "BANNED") {
-              setIsBanned(true);
-            }
-            
-            // Start countdown to logout
+            if (res.data.data.status === "BANNED") setIsBanned(true);
             let timer = 5;
             const interval = setInterval(() => {
               timer -= 1;
@@ -45,10 +81,7 @@ export default function AdminDashboardPage() {
                 window.location.href = "/login";
               }
             }, 1000);
-          }).catch((error: any) => {
-            console.error("Backend Error - Failed to log violation:", error.response?.data || error.message);
-            
-            // Fallback logout if the request fails
+          }).catch(() => {
             setTimeout(() => {
               localStorage.removeItem("accessToken");
               document.cookie = "accessToken=; path=/; max-age=0; SameSite=Lax";
@@ -64,10 +97,16 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
-  const { data, isLoading } = useQuery({
+  const { data: eventsData, isLoading: eventsLoading } = useQuery({
     queryKey: ["adminEvents"],
     queryFn: getPublicEvents,
-    enabled: !isUnauthorized, // Don't fetch events if unauthorized
+    enabled: !isUnauthorized,
+  });
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["adminStats"],
+    queryFn: getAdminStats,
+    enabled: !isUnauthorized && (userRole === "ADMIN" || userRole === "MODERATOR"),
   });
 
   const deleteMutation = useMutation({
@@ -75,8 +114,22 @@ export default function AdminDashboardPage() {
     onSuccess: () => {
       toast.success("Event deleted globally by Admin.");
       queryClient.invalidateQueries({ queryKey: ["adminEvents"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
     },
     onError: () => toast.error("Failed to delete event."),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ eventId, status, rejectionReason }: { eventId: string; status: "APPROVED" | "REJECTED"; rejectionReason?: string }) =>
+      updateEventStatus(eventId, status, rejectionReason),
+    onSuccess: () => {
+      toast.success("Event status updated successfully.");
+      queryClient.invalidateQueries({ queryKey: ["adminEvents"] });
+      queryClient.invalidateQueries({ queryKey: ["adminStats"] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || "Failed to update event status.");
+    },
   });
 
   // --- FORBIDDEN UI ---
@@ -112,67 +165,332 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // --- ADMIN UI ---
-  if (isLoading) return <div className="p-8 animate-pulse text-indigo-600 font-semibold">Loading Admin Portal...</div>;
+  const events = eventsData?.data || [];
 
-  const events = data?.data || [];
+  // Tab buttons config
+  const tabs: { key: "overview" | "events" | "users" | "messages" | "logs"; label: string; icon: any }[] = [
+    { key: "overview", label: "Overview", icon: BarChart2 },
+    { key: "events", label: "Events", icon: Calendar },
+    { key: "users", label: "Users", icon: Users },
+    { key: "messages", label: "Messages", icon: ShieldAlert },
+    ...(userRole === "ADMIN" ? [{ key: "logs" as const, label: "Audit Logs", icon: Clock }] : []),
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-200">
-        <ShieldAlert className="h-8 w-8 text-red-600" />
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Admin Control Center</h1>
-          <p className="text-sm text-slate-500">Monitor and moderate all platform events.</p>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pb-4 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+            <ShieldAlert className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900">Admin Control Center</h1>
+            <p className="text-xs text-slate-500">Monitor and moderate all platform activity.</p>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-900">Moderate Events</h2>
-        </div>
-        <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-            <tr>
-              <th className="px-6 py-4">Event Title</th>
-              <th className="px-6 py-4">Date</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Admin Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {events.map((event: any) => (
-              <tr key={event.id} className="hover:bg-slate-50/50">
-                <td className="px-6 py-4 font-medium text-slate-900">{event.title}</td>
-                <td className="px-6 py-4 text-slate-500">
-                  {event.date ? format(new Date(event.date), "PPP") : "N/A"}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${event.isPublic ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-700'}`}>
-                    {event.isPublic ? 'PUBLIC' : 'PRIVATE'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    onClick={() => {
-                      if (confirm("ADMIN OVERRIDE: Delete this event globally?")) {
-                        deleteMutation.mutate(event.id);
-                      }
-                    }}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" /> Force Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Tab Navigation */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-full overflow-x-auto">
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex-1 justify-center cursor-pointer ${
+              activeTab === key
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <UserManagementTable />
+      {/* ========== OVERVIEW TAB ========== */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          {statsLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Array(7).fill(0).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 h-24 animate-pulse" />
+              ))}
+            </div>
+          ) : stats ? (
+            <>
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <StatCard icon={Users} label="Total Members" value={stats.totalMembers} sub="Registered users" color="bg-indigo-100 text-indigo-600" />
+                <StatCard icon={Calendar} label="Total Events" value={stats.totalEvents} sub="All time" color="bg-purple-100 text-purple-600" />
+                <StatCard icon={CheckCircle2} label="Approved" value={stats.approvedCount} sub="Live events" color="bg-emerald-100 text-emerald-600" />
+                <StatCard icon={XCircle} label="Rejected" value={stats.rejectedCount} sub="Rejected by admin" color="bg-red-100 text-red-600" />
+                <StatCard icon={Clock} label="Pending" value={stats.pendingCount} sub="Awaiting review" color="bg-amber-100 text-amber-600" />
+                <StatCard
+                  icon={DollarSign}
+                  label="Total Revenue"
+                  value={`$${stats.totalRevenue.toLocaleString()}`}
+                  sub="From paid tickets"
+                  color="bg-green-100 text-green-600"
+                />
+                <StatCard icon={TrendingUp} label="Categories" value={stats.categoryData?.length || 0} sub="Event types" color="bg-cyan-100 text-cyan-600" />
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Area Chart - Events over time */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <h3 className="text-sm font-bold text-slate-900 mb-4">Events Created (Last 12 Months)</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={stats.monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="eventsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ background: "#0f172a", border: "none", borderRadius: 10, color: "#f8fafc", fontSize: 12 }}
+                        labelStyle={{ color: "#94a3b8" }}
+                      />
+                      <Area type="monotone" dataKey="count" name="Events" stroke="#6366f1" strokeWidth={2} fill="url(#eventsGrad)" dot={{ r: 3, fill: "#6366f1" }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Bar Chart - Events by status */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <h3 className="text-sm font-bold text-slate-900 mb-4">Event Moderation Status</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart
+                      data={[
+                        { name: "Approved", count: stats.approvedCount, fill: "#10b981" },
+                        { name: "Pending", count: stats.pendingCount, fill: "#f59e0b" },
+                        { name: "Rejected", count: stats.rejectedCount, fill: "#ef4444" },
+                      ]}
+                      margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ background: "#0f172a", border: "none", borderRadius: 10, color: "#f8fafc", fontSize: 12 }}
+                        cursor={{ fill: "#f8fafc10" }}
+                      />
+                      <Bar dataKey="count" name="Events" radius={[6, 6, 0, 0]}>
+                        {[
+                          { name: "Approved", fill: "#10b981" },
+                          { name: "Pending", fill: "#f59e0b" },
+                          { name: "Rejected", fill: "#ef4444" },
+                        ].map((entry, index) => (
+                          <Cell key={index} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Pie Chart - Events by Category */}
+              {stats.categoryData?.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <h3 className="text-sm font-bold text-slate-900 mb-4">Events by Category</h3>
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={stats.categoryData}
+                          dataKey="count"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={90}
+                          innerRadius={50}
+                          paddingAngle={3}
+                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          {stats.categoryData.map((_: any, i: number) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ background: "#0f172a", border: "none", borderRadius: 10, color: "#f8fafc", fontSize: 12 }}
+                        />
+                        <Legend
+                          iconType="circle"
+                          iconSize={8}
+                          formatter={(value) => <span className="text-xs text-slate-600">{value}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* ========== EVENTS TAB ========== */}
+      {activeTab === "events" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <h2 className="text-base font-bold text-slate-900">Moderate Events</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Approve or reject event submissions.</p>
+          </div>
+          {eventsLoading ? (
+            <div className="p-8 animate-pulse text-indigo-600 font-semibold text-sm">Loading events...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-xs">Event Title</th>
+                    <th className="px-4 py-3 text-xs hidden sm:table-cell">Date</th>
+                    <th className="px-4 py-3 text-xs">Type</th>
+                    <th className="px-4 py-3 text-xs">Status</th>
+                    <th className="px-4 py-3 text-xs text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {events.map((event: any) => (
+                    <tr key={event.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 max-w-[180px]">
+                        <p className="truncate text-sm">{event.title}</p>
+                        {event.rejectionReason && (
+                          <p className="text-[10px] text-red-500 italic mt-0.5 truncate">Reason: {event.rejectionReason}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs hidden sm:table-cell">
+                        {event.date ? format(new Date(event.date), "PP") : "N/A"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${event.isPublic ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-700"}`}>
+                          {event.isPublic ? "PUBLIC" : "PRIVATE"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          event.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                          event.status === "REJECTED" ? "bg-red-100 text-red-700" :
+                          "bg-yellow-100 text-yellow-700"
+                        }`}>
+                          {event.status || "PENDING"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex gap-1.5 justify-end flex-wrap">
+                          {event.status !== "APPROVED" && event.status !== "REJECTED" && (
+                            <>
+                              <Button
+                                variant="outline" size="sm"
+                                className="text-green-600 border-green-200 hover:bg-green-50 text-xs h-7 px-2"
+                                onClick={() => {
+                                  Swal.fire({
+                                    title: "Approve Event?",
+                                    text: "This event will be published and made visible to all users.",
+                                    icon: "question",
+                                    showCancelButton: true,
+                                    confirmButtonColor: "#10b981",
+                                    cancelButtonColor: "#64748b",
+                                    confirmButtonText: "Yes, approve!",
+                                    background: "#0f172a",
+                                    color: "#f8fafc",
+                                    iconColor: "#10b981",
+                                    customClass: { popup: "rounded-2xl border border-slate-800" },
+                                  }).then((result) => {
+                                    if (result.isConfirmed) statusMutation.mutate({ eventId: event.id, status: "APPROVED" });
+                                  });
+                                }}
+                                disabled={statusMutation.isPending}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="outline" size="sm"
+                                className="text-red-600 border-red-200 hover:bg-red-50 text-xs h-7 px-2"
+                                onClick={() => {
+                                  Swal.fire({
+                                    title: "Reject Event?",
+                                    text: "Please provide a reason to inform the event creator:",
+                                    input: "text",
+                                    inputPlaceholder: "Reason for rejection...",
+                                    icon: "warning",
+                                    showCancelButton: true,
+                                    confirmButtonColor: "#ef4444",
+                                    cancelButtonColor: "#64748b",
+                                    confirmButtonText: "Reject Event",
+                                    background: "#0f172a",
+                                    color: "#f8fafc",
+                                    iconColor: "#ef4444",
+                                    customClass: { popup: "rounded-2xl border border-slate-800" },
+                                    inputValidator: (value) => { if (!value) return "You must write a reason!"; },
+                                  }).then((result) => {
+                                    if (result.isConfirmed && result.value) {
+                                      statusMutation.mutate({ eventId: event.id, status: "REJECTED", rejectionReason: result.value });
+                                    }
+                                  });
+                                }}
+                                disabled={statusMutation.isPending}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            variant="destructive" size="sm"
+                            className="text-xs h-7 px-2"
+                            onClick={() => {
+                              Swal.fire({
+                                title: "Force Delete Event?",
+                                text: "ADMIN OVERRIDE: This event will be permanently deleted!",
+                                icon: "warning",
+                                showCancelButton: true,
+                                confirmButtonColor: "#4f46e5",
+                                cancelButtonColor: "#ef4444",
+                                confirmButtonText: "Yes, force delete!",
+                                background: "#0f172a",
+                                color: "#f8fafc",
+                                iconColor: "#f59e0b",
+                                customClass: { popup: "rounded-2xl border border-slate-800" },
+                              }).then((result) => {
+                                if (result.isConfirmed) deleteMutation.mutate(event.id);
+                              });
+                            }}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {events.length === 0 && (
+                <div className="py-16 text-center text-slate-400">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 text-slate-200" />
+                  <p className="text-sm font-semibold">No events found</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========== USERS TAB ========== */}
+      {activeTab === "users" && <UserManagementTable />}
+
+      {/* ========== MESSAGES TAB ========== */}
+      {activeTab === "messages" && <AdminMessagesTable />}
+
+      {/* ========== AUDIT LOGS TAB ========== */}
+      {activeTab === "logs" && <AuditLogsTable />}
     </div>
   );
 }
