@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link";
 import { Calendar, MapPin, Tag, Eye, Trash2, PlusCircle, LayoutDashboard, Sliders } from "lucide-react";
 import { format } from "date-fns";
+import Swal from "sweetalert2";
 
 interface HostedEvent {
   id: string;
@@ -63,9 +64,25 @@ export default function ManageEventsPage() {
   });
 
   const handleDelete = (eventId: string) => {
-    if (confirm("Are you sure you want to delete this event? This action cannot be undone.")) {
-      deleteMutation.mutate(eventId);
-    }
+    Swal.fire({
+      title: "Delete Event?",
+      text: "Are you sure you want to delete this event? This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#4f46e5",
+      cancelButtonColor: "#ef4444",
+      confirmButtonText: "Yes, delete event!",
+      background: "#0f172a",
+      color: "#f8fafc",
+      iconColor: "#f59e0b",
+      customClass: {
+        popup: "rounded-2xl border border-slate-800"
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        deleteMutation.mutate(eventId);
+      }
+    });
   };
 
   const parseDescription = (desc: string) => {

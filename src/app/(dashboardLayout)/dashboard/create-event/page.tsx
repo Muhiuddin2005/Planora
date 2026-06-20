@@ -59,7 +59,7 @@ export default function CreateEventPage() {
   const mutation = useMutation({
     mutationFn: createNewEvent,
     onSuccess: () => {
-      toast.success("Event created successfully!");
+      toast.success("Event created successfully! It is pending admin approval.");
       router.push("/dashboard");
     },
     onError: (error: unknown) => {

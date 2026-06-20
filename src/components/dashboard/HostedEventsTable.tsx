@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Trash2, Edit, X, UserPlus } from "lucide-react";
 import { sendInvitation } from "@/services/invitation.service";
+import Swal from "sweetalert2";
 import {
   Table,
   TableBody,
@@ -108,13 +109,51 @@ export default function HostedEventsTable({ initialData: events }: { initialData
   };
 
   const handleStatusChange = (participationId: string, newStatus: string) => {
-    statusMutation.mutate({ id: participationId, status: newStatus });
+    if (newStatus === "BANNED") {
+      Swal.fire({
+        title: "Ban Participant?",
+        text: "Are you sure you want to ban this participant from the event?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: "Yes, ban!",
+        background: "#0f172a",
+        color: "#f8fafc",
+        iconColor: "#ef4444",
+        customClass: {
+          popup: "rounded-2xl border border-slate-800"
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          statusMutation.mutate({ id: participationId, status: newStatus });
+        }
+      });
+    } else {
+      statusMutation.mutate({ id: participationId, status: newStatus });
+    }
   };
 
   const handleDelete = (eventId: string) => {
-    if (confirm("Are you sure you want to delete this event? This action cannot be undone.")) {
-      deleteMutation.mutate(eventId);
-    }
+    Swal.fire({
+      title: "Delete Event?",
+      text: "Are you sure you want to delete this event? This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#4f46e5",
+      cancelButtonColor: "#ef4444",
+      confirmButtonText: "Yes, delete event!",
+      background: "#0f172a",
+      color: "#f8fafc",
+      iconColor: "#f59e0b",
+      customClass: {
+        popup: "rounded-2xl border border-slate-800"
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        deleteMutation.mutate(eventId);
+      }
+    });
   };
 
   const handleOpenEdit = (event: HostedEventItem) => {
