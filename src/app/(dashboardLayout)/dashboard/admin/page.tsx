@@ -7,7 +7,7 @@ import { axiosInstance } from "@/lib/axiosInstance";
 import {
   ShieldAlert, Trash2, AlertOctagon, Users, Calendar,
   DollarSign, TrendingUp, CheckCircle2, XCircle, Clock,
-  BarChart2,
+  BarChart2, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -385,6 +385,107 @@ export default function AdminDashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-1.5 justify-end flex-wrap">
+                          <Button
+                            variant="outline" size="sm"
+                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs h-7 px-2"
+                            onClick={() => {
+                              let finalDesc = event.description;
+                              let finalImg = "";
+                              try {
+                                const parsed = JSON.parse(event.description);
+                                finalDesc = parsed.fullDescription || parsed.shortDescription || event.description;
+                                finalImg = parsed.imageUrl || "";
+                              } catch (e) {}
+
+                              const isPending = event.status !== "APPROVED" && event.status !== "REJECTED";
+
+                              Swal.fire({
+                                title: event.title,
+                                html: `
+                                  <div class="text-left space-y-4 text-slate-700">
+                                    ${finalImg ? `<div class="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img src="${finalImg}" class="w-full h-48 object-cover" /></div>` : ""}
+                                    <div class="grid grid-cols-2 gap-4 text-xs">
+                                      <div>
+                                        <span class="font-bold text-slate-500 block uppercase tracking-wider">Date & Time</span>
+                                        <span class="text-slate-800">${event.date ? format(new Date(event.date), "PPP") : "N/A"} at ${event.time || "N/A"}</span>
+                                      </div>
+                                      <div>
+                                        <span class="font-bold text-slate-500 block uppercase tracking-wider">Venue</span>
+                                        <span class="text-slate-800">${event.venue || "N/A"}</span>
+                                      </div>
+                                      <div>
+                                        <span class="font-bold text-slate-500 block uppercase tracking-wider">Price</span>
+                                        <span class="text-slate-800">${event.isPaid ? `$${event.fee}` : "Free"}</span>
+                                      </div>
+                                      <div>
+                                        <span class="font-bold text-slate-500 block uppercase tracking-wider">Type</span>
+                                        <span class="text-slate-800">${event.isPublic ? "Public" : "Private"}</span>
+                                      </div>
+                                    </div>
+                                    <hr class="border-slate-200 my-3" />
+                                    <div class="text-xs">
+                                      <span class="font-bold text-slate-500 block uppercase tracking-wider mb-1">Description</span>
+                                      <p class="whitespace-pre-line leading-relaxed text-slate-600">${finalDesc}</p>
+                                    </div>
+                                  </div>
+                                `,
+                                showConfirmButton: true,
+                                showCancelButton: isPending,
+                                showDenyButton: isPending,
+                                confirmButtonText: "Close",
+                                confirmButtonColor: "#64748b",
+                                cancelButtonText: "Approve",
+                                cancelButtonColor: "#10b981",
+                                denyButtonText: "Reject",
+                                denyButtonColor: "#ef4444",
+                                customClass: {
+                                  popup: "rounded-2xl border border-slate-200 shadow-xl bg-white",
+                                  confirmButton: "order-3 px-4 py-2 text-sm font-semibold rounded-lg mx-1",
+                                  denyButton: "order-2 px-4 py-2 text-sm font-semibold rounded-lg mx-1",
+                                  cancelButton: "order-1 px-4 py-2 text-sm font-semibold rounded-lg mx-1",
+                                }
+                              }).then((result) => {
+                                if (result.isDenied) {
+                                  Swal.fire({
+                                    title: "Reject Event?",
+                                    text: "Please provide a reason to inform the event creator:",
+                                    input: "text",
+                                    inputPlaceholder: "Reason for rejection...",
+                                    icon: "warning",
+                                    showCancelButton: true,
+                                    confirmButtonColor: "#ef4444",
+                                    cancelButtonColor: "#64748b",
+                                    confirmButtonText: "Reject Event",
+                                    iconColor: "#ef4444",
+                                    customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
+                                    inputValidator: (value) => { if (!value) return "You must write a reason!"; },
+                                  }).then((rejectResult) => {
+                                    if (rejectResult.isConfirmed && rejectResult.value) {
+                                      statusMutation.mutate({ eventId: event.id, status: "REJECTED", rejectionReason: rejectResult.value });
+                                    }
+                                  });
+                                } else if (result.dismiss === Swal.DismissReason.cancel) {
+                                  Swal.fire({
+                                    title: "Approve Event?",
+                                    text: "This event will be published and made visible to all users.",
+                                    icon: "question",
+                                    showCancelButton: true,
+                                    confirmButtonColor: "#10b981",
+                                    cancelButtonColor: "#64748b",
+                                    confirmButtonText: "Yes, approve!",
+                                    iconColor: "#10b981",
+                                    customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
+                                  }).then((approveResult) => {
+                                    if (approveResult.isConfirmed) {
+                                      statusMutation.mutate({ eventId: event.id, status: "APPROVED" });
+                                    }
+                                  });
+                                }
+                              });
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                           {event.status !== "APPROVED" && event.status !== "REJECTED" && (
                             <>
                               <Button
@@ -399,10 +500,8 @@ export default function AdminDashboardPage() {
                                     confirmButtonColor: "#10b981",
                                     cancelButtonColor: "#64748b",
                                     confirmButtonText: "Yes, approve!",
-                                    background: "#0f172a",
-                                    color: "#f8fafc",
                                     iconColor: "#10b981",
-                                    customClass: { popup: "rounded-2xl border border-slate-800" },
+                                    customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
                                   }).then((result) => {
                                     if (result.isConfirmed) statusMutation.mutate({ eventId: event.id, status: "APPROVED" });
                                   });
@@ -425,10 +524,8 @@ export default function AdminDashboardPage() {
                                     confirmButtonColor: "#ef4444",
                                     cancelButtonColor: "#64748b",
                                     confirmButtonText: "Reject Event",
-                                    background: "#0f172a",
-                                    color: "#f8fafc",
                                     iconColor: "#ef4444",
-                                    customClass: { popup: "rounded-2xl border border-slate-800" },
+                                    customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
                                     inputValidator: (value) => { if (!value) return "You must write a reason!"; },
                                   }).then((result) => {
                                     if (result.isConfirmed && result.value) {
@@ -454,10 +551,8 @@ export default function AdminDashboardPage() {
                                 confirmButtonColor: "#4f46e5",
                                 cancelButtonColor: "#ef4444",
                                 confirmButtonText: "Yes, force delete!",
-                                background: "#0f172a",
-                                color: "#f8fafc",
                                 iconColor: "#f59e0b",
-                                customClass: { popup: "rounded-2xl border border-slate-800" },
+                                customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
                               }).then((result) => {
                                 if (result.isConfirmed) deleteMutation.mutate(event.id);
                               });

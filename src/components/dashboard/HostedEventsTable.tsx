@@ -39,6 +39,8 @@ interface HostedEventItem {
   isPaid: boolean;
   fee: number;
   participations?: HostedParticipant[];
+  status?: string;
+  rejectionReason?: string | null;
 }
 
 export default function HostedEventsTable({ initialData: events }: { initialData: HostedEventItem[] }) {
@@ -118,11 +120,9 @@ export default function HostedEventsTable({ initialData: events }: { initialData
         confirmButtonColor: "#ef4444",
         cancelButtonColor: "#64748b",
         confirmButtonText: "Yes, ban!",
-        background: "#0f172a",
-        color: "#f8fafc",
         iconColor: "#ef4444",
         customClass: {
-          popup: "rounded-2xl border border-slate-800"
+          popup: "rounded-2xl border border-slate-200 shadow-xl bg-white"
         }
       }).then((result) => {
         if (result.isConfirmed) {
@@ -143,11 +143,9 @@ export default function HostedEventsTable({ initialData: events }: { initialData
       confirmButtonColor: "#4f46e5",
       cancelButtonColor: "#ef4444",
       confirmButtonText: "Yes, delete event!",
-      background: "#0f172a",
-      color: "#f8fafc",
       iconColor: "#f59e0b",
       customClass: {
-        popup: "rounded-2xl border border-slate-800"
+        popup: "rounded-2xl border border-slate-200 shadow-xl bg-white"
       }
     }).then((result) => {
       if (result.isConfirmed) {
@@ -195,49 +193,72 @@ export default function HostedEventsTable({ initialData: events }: { initialData
       {events.map((event) => (
         <div key={event.id} className="border border-slate-200 rounded-lg p-4 relative group">
           <div className="flex justify-between items-start mb-4">
-            <h3 className="font-bold text-lg text-slate-900">{event.title}</h3>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button 
-                size="icon-sm" 
-                variant="outline" 
-                className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                onClick={() => {
-                  setInviteEventId(event.id);
-                  setInviteModalOpen(true);
-                }}
-              >
-                <UserPlus className="h-4 w-4" />
-              </Button>
-              <Button 
-                size="icon-sm" 
-                variant="outline" 
-                className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                onClick={() => handleOpenEdit(event)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button 
-                size="icon-sm" 
-                variant="outline" 
-                className={
-                  (event.isPaid && Date.now() < new Date(event.date).getTime() + (48 * 60 * 60 * 1000))
-                    ? "text-slate-400 border-slate-200 cursor-not-allowed bg-slate-50"
-                    : "text-red-600 border-red-200 hover:bg-red-50"
-                }
-                onClick={() => {
-                  const isLocked = event.isPaid && Date.now() < new Date(event.date).getTime() + (48 * 60 * 60 * 1000);
-                  if (isLocked) {
-                    toast.error("Paid events cannot be deleted until 48 hours after the event date.");
-                    return;
-                  }
-                  handleDelete(event.id);
-                }}
-                disabled={deleteMutation.isPending}
-                title={(event.isPaid && Date.now() < new Date(event.date).getTime() + (48 * 60 * 60 * 1000)) ? "Locked for 48 hours post-event" : "Delete Event"}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+            <div>
+              <h3 className="font-bold text-lg text-slate-900 leading-tight">{event.title}</h3>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  event.isPublic ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {event.isPublic ? 'Public' : 'Private'}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  event.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' :
+                  event.status === 'REJECTED' ? 'bg-red-50 text-red-700' :
+                  'bg-amber-50 text-amber-700'
+                }`}>
+                  {event.status === 'REJECTED' ? 'Banned' : event.status || 'Pending'}
+                </span>
+                {event.status === 'REJECTED' && event.rejectionReason && (
+                  <span className="text-[11px] text-red-500 italic">
+                    (Reason: {event.rejectionReason})
+                  </span>
+                )}
+              </div>
             </div>
+            {event.status === 'APPROVED' && (
+              <div className="flex gap-2 shrink-0">
+                <Button 
+                  size="icon-sm" 
+                  variant="outline" 
+                  className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                  onClick={() => {
+                    setInviteEventId(event.id);
+                    setInviteModalOpen(true);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+                <Button 
+                  size="icon-sm" 
+                  variant="outline" 
+                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                  onClick={() => handleOpenEdit(event)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button 
+                  size="icon-sm" 
+                  variant="outline" 
+                  className={
+                    (event.isPaid && Date.now() < new Date(event.date).getTime() + (48 * 60 * 60 * 1000))
+                      ? "text-slate-400 border-slate-200 cursor-not-allowed bg-slate-50"
+                      : "text-red-600 border-red-200 hover:bg-red-50"
+                  }
+                  onClick={() => {
+                    const isLocked = event.isPaid && Date.now() < new Date(event.date).getTime() + (48 * 60 * 60 * 1000);
+                    if (isLocked) {
+                      toast.error("Paid events cannot be deleted until 48 hours after the event date.");
+                      return;
+                    }
+                    handleDelete(event.id);
+                  }}
+                  disabled={deleteMutation.isPending}
+                  title={(event.isPaid && Date.now() < new Date(event.date).getTime() + (48 * 60 * 60 * 1000)) ? "Locked for 48 hours post-event" : "Delete Event"}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
           
           {event.participations?.length === 0 ? (

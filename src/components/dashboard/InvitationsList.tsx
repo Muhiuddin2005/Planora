@@ -6,8 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Mail, ArrowRight } from "lucide-react";
+import { Mail, ArrowRight, Eye } from "lucide-react";
 import Link from "next/link";
+import Swal from "sweetalert2";
 
 export default function InvitationsList() {
   const queryClient = useQueryClient();
@@ -26,6 +27,55 @@ export default function InvitationsList() {
     },
     onError: () => toast.error("Failed to respond to invitation."),
   });
+
+  const handleShowEventDetails = (event: any) => {
+    if (!event) return;
+    let finalDesc = event.description;
+    let finalImg = "";
+    try {
+      const parsed = JSON.parse(event.description);
+      finalDesc = parsed.fullDescription || parsed.shortDescription || event.description;
+      finalImg = parsed.imageUrl || "";
+    } catch (e) {}
+
+    Swal.fire({
+      title: event.title,
+      html: `
+        <div class="text-left space-y-4 text-slate-700">
+          ${finalImg ? `<div class="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img src="${finalImg}" class="w-full h-48 object-cover" /></div>` : ""}
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <span class="font-bold text-slate-500 block uppercase tracking-wider">Date & Time</span>
+              <span class="text-slate-800">${event.date ? format(new Date(event.date), "PPP") : "N/A"} at ${event.time || "N/A"}</span>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block uppercase tracking-wider">Venue</span>
+              <span class="text-slate-800">${event.venue || "N/A"}</span>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block uppercase tracking-wider">Price</span>
+              <span class="text-slate-800">${event.isPaid ? `$${event.fee}` : "Free"}</span>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block uppercase tracking-wider">Type</span>
+              <span class="text-slate-800">${event.isPublic ? "Public" : "Private"}</span>
+            </div>
+          </div>
+          <hr class="border-slate-200 my-3" />
+          <div class="text-xs">
+            <span class="font-bold text-slate-500 block uppercase tracking-wider mb-1">Description</span>
+            <p class="whitespace-pre-line leading-relaxed text-slate-600">${finalDesc}</p>
+          </div>
+        </div>
+      `,
+      showConfirmButton: true,
+      confirmButtonText: "Close",
+      confirmButtonColor: "#64748b",
+      customClass: {
+        popup: "rounded-2xl border border-slate-200 shadow-xl bg-white",
+      }
+    });
+  };
 
   if (isLoading) return <div className="animate-pulse h-20 bg-slate-100 rounded-xl" />;
 
@@ -51,7 +101,16 @@ export default function InvitationsList() {
             </div>
             
             {invite.status === "PENDING" ? (
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <Button 
+                  size="icon-sm" 
+                  variant="outline" 
+                  className="text-slate-600 border-slate-200 hover:bg-slate-50 h-7 w-7 p-0 cursor-pointer"
+                  title="View Event Details"
+                  onClick={() => handleShowEventDetails(invite.event)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
                 <Button 
                   size="sm" 
                   className="bg-indigo-600 hover:bg-indigo-700"

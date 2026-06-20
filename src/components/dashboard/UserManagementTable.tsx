@@ -74,10 +74,8 @@ export default function UserManagementTable() {
       confirmButtonColor: "#4f46e5",
       cancelButtonColor: "#ef4444",
       confirmButtonText: "Yes, delete user!",
-      background: "#0f172a",
-      color: "#f8fafc",
       iconColor: "#f59e0b",
-      customClass: { popup: "rounded-2xl border border-slate-800" },
+      customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
     }).then((result) => {
       if (result.isConfirmed) deleteMutation.mutate(id);
     });
@@ -95,10 +93,8 @@ export default function UserManagementTable() {
       confirmButtonColor: isBan ? "#ef4444" : "#10b981",
       cancelButtonColor: "#64748b",
       confirmButtonText: isBan ? "Yes, ban!" : "Yes, unban!",
-      background: "#0f172a",
-      color: "#f8fafc",
       iconColor: isBan ? "#ef4444" : "#10b981",
-      customClass: { popup: "rounded-2xl border border-slate-800" },
+      customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
     }).then((result) => {
       if (result.isConfirmed) {
         statusMutation.mutate({ id: user.id, status: isBan ? "BANNED" : "ACTIVE" });
@@ -118,10 +114,8 @@ export default function UserManagementTable() {
       confirmButtonColor: isPromoting ? "#f59e0b" : "#64748b",
       cancelButtonColor: "#475569",
       confirmButtonText: isPromoting ? "Yes, promote!" : "Yes, revoke!",
-      background: "#0f172a",
-      color: "#f8fafc",
       iconColor: "#f59e0b",
-      customClass: { popup: "rounded-2xl border border-slate-800" },
+      customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
     }).then((result) => {
       if (result.isConfirmed) {
         roleMutation.mutate({ id: user.id, role: isPromoting ? "MODERATOR" : "USER" });

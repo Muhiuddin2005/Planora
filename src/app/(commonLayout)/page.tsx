@@ -70,7 +70,7 @@ export default function HomePage() {
   const statsOpacity = useTransform(statsScrollProgress, [0, 1], [0.3, 1]);
   const statsY = useTransform(statsScrollProgress, [0, 1], [100, 0]);
 
-  const featuredEvents = data?.data?.slice(0, 9) || [];
+  const featuredEvents = data?.data?.slice(0, 3) || [];
 
   // Duplicate features list to perform seamless infinite horizontal sliding
   const doubledFeatures = [...features, ...features];
@@ -103,7 +103,7 @@ export default function HomePage() {
         {isError && <p className="text-red-500 font-medium">Failed to load events. Please try again later.</p>}
 
         <ScrollReveal animation="fade" delay={0.2}>
-          <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {featuredEvents.map((event: any) => {
               let shortDesc = "";
               let imageSrc = "";
@@ -118,7 +118,7 @@ export default function HomePage() {
               return (
                 <Card 
                   key={event.id} 
-                  className="min-w-[300px] md:min-w-[350px] flex-shrink-0 snap-start flex flex-col shadow-sm hover:shadow-md transition-all border-slate-200 group overflow-hidden rounded-2xl bg-white view-hover-card"
+                  className="flex flex-col shadow-sm hover:shadow-md transition-all border-slate-200 group overflow-hidden rounded-2xl bg-white view-hover-card h-full"
                 >
                   <div className="relative h-40 w-full bg-slate-50 overflow-hidden shrink-0 border-b border-slate-100">
                     {imageSrc ? (
@@ -147,7 +147,7 @@ export default function HomePage() {
                     </div>
                   </CardHeader>
                   <CardContent className="flex-grow text-xs text-slate-600 leading-relaxed pb-4">
-                    <p className="line-clamp-2 min-h-[32px]">{shortDesc}</p>
+                    <p className="line-clamp-2">{shortDesc}</p>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider text-[9px]">
                         <Tag className="h-3 w-3" />
@@ -159,7 +159,7 @@ export default function HomePage() {
                       </span>
                     </div>
                   </CardContent>
-                  <CardFooter className="pt-0 border-t border-slate-50 mt-2">
+                  <CardFooter className="pt-0 border-t border-slate-50 mt-auto">
                     <Link href={`/events/${event.id}`} passHref className="w-full mt-3">
                       <Button className="w-full bg-slate-900 hover:bg-slate-800 font-semibold cursor-pointer">View Details</Button>
                     </Link>
@@ -169,7 +169,7 @@ export default function HomePage() {
             })}
 
             {!isLoading && featuredEvents.length === 0 && (
-              <div className="w-full text-center py-16 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+              <div className="col-span-1 md:col-span-3 text-center py-16 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
                 <p className="text-slate-500 font-medium">No public events listed yet.</p>
               </div>
             )}

@@ -24,6 +24,8 @@ interface HostedEvent {
   isPublic: boolean;
   isPaid: boolean;
   fee: number;
+  status: string;
+  rejectionReason?: string | null;
 }
 
 export default function ManageEventsPage() {
@@ -72,11 +74,9 @@ export default function ManageEventsPage() {
       confirmButtonColor: "#4f46e5",
       cancelButtonColor: "#ef4444",
       confirmButtonText: "Yes, delete event!",
-      background: "#0f172a",
-      color: "#f8fafc",
       iconColor: "#f59e0b",
       customClass: {
-        popup: "rounded-2xl border border-slate-800"
+        popup: "rounded-2xl border border-slate-200 shadow-xl bg-white"
       }
     }).then((result) => {
       if (result.isConfirmed) {
@@ -178,11 +178,25 @@ export default function ManageEventsPage() {
                         <span className="text-xs text-slate-400 line-clamp-1 mt-1 max-w-xs">
                           {parseDescription(event.description)}
                         </span>
-                        <span className={`inline-block w-fit px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1.5 ${
-                          event.isPublic ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {event.isPublic ? 'Public' : 'Private'}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            event.isPublic ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {event.isPublic ? 'Public' : 'Private'}
+                          </span>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            event.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' :
+                            event.status === 'REJECTED' ? 'bg-red-50 text-red-700' :
+                            'bg-amber-50 text-amber-700'
+                          }`}>
+                            {event.status === 'REJECTED' ? 'Banned' : event.status || 'Pending'}
+                          </span>
+                        </div>
+                        {event.status === 'REJECTED' && event.rejectionReason && (
+                          <span className="text-[11px] text-red-500 italic mt-1.5 max-w-xs truncate">
+                            Reason: {event.rejectionReason}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-slate-600 font-medium">
@@ -196,20 +210,26 @@ export default function ManageEventsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Link href={`/events/${event.id}`}>
-                        <Button size="sm" variant="outline" className="text-slate-600 hover:bg-slate-50">
-                          <Eye className="h-4 w-4 mr-1 text-slate-400" /> View
-                        </Button>
-                      </Link>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(event.id)}
-                        disabled={deleteMutation.isPending}
-                        className="cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" /> Delete
-                      </Button>
+                      {event.status !== 'APPROVED' ? (
+                        <span className="text-xs text-slate-400 italic">No actions available</span>
+                      ) : (
+                        <>
+                          <Link href={`/events/${event.id}`}>
+                            <Button size="sm" variant="outline" className="text-slate-600 hover:bg-slate-50">
+                              <Eye className="h-4 w-4 mr-1 text-slate-400" /> View
+                            </Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(event.id)}
+                            disabled={deleteMutation.isPending}
+                            className="cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                          </Button>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -224,15 +244,29 @@ export default function ManageEventsPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-lg font-bold text-slate-900">{event.title}</CardTitle>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                      event.isPublic ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      {event.isPublic ? 'Public' : 'Private'}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                        event.isPublic ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {event.isPublic ? 'Public' : 'Private'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                        event.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' :
+                        event.status === 'REJECTED' ? 'bg-red-50 text-red-700' :
+                        'bg-amber-50 text-amber-700'
+                      }`}>
+                        {event.status === 'REJECTED' ? 'Banned' : event.status || 'Pending'}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-500 line-clamp-2 mt-1">
                     {parseDescription(event.description)}
                   </p>
+                  {event.status === 'REJECTED' && event.rejectionReason && (
+                    <p className="text-[11px] text-red-500 italic mt-1 bg-red-50 p-1.5 rounded border border-red-100">
+                      Reason: {event.rejectionReason}
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent className="pb-3 text-xs text-slate-600 space-y-2.5">
                   <div className="flex items-center gap-1.5 font-medium">
@@ -250,22 +284,24 @@ export default function ManageEventsPage() {
                     </span>
                   </div>
                 </CardContent>
-                <CardFooter className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-                  <Link href={`/events/${event.id}`} className="w-full">
-                    <Button size="sm" variant="outline" className="w-full text-slate-600">
-                      <Eye className="h-4 w-4 mr-1 text-slate-400" /> View
+                {event.status === 'APPROVED' && (
+                  <CardFooter className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+                    <Link href={`/events/${event.id}`} className="w-full">
+                      <Button size="sm" variant="outline" className="w-full text-slate-600">
+                        <Eye className="h-4 w-4 mr-1 text-slate-400" /> View
+                      </Button>
+                    </Link>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDelete(event.id)}
+                      disabled={deleteMutation.isPending}
+                      className="w-full cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" /> Delete
                     </Button>
-                  </Link>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleDelete(event.id)}
-                    disabled={deleteMutation.isPending}
-                    className="w-full cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" /> Delete
-                  </Button>
-                </CardFooter>
+                  </CardFooter>
+                )}
               </Card>
             ))}
           </div>

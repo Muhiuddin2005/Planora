@@ -13,8 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { jwtDecode } from "jwt-decode";
 import { Sparkles, Upload, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { useState, useEffect } from "react";
 
 const eventSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -34,8 +33,27 @@ type EventFormValues = z.infer<typeof eventSchema>;
 
 export default function CreateEventPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrlPreview, setImageUrlPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem("accessToken") : null;
+    if (!token) {
+      toast.error("Please sign in to host new events");
+      router.push("/login");
+    } else {
+      try {
+        const decoded = jwtDecode<{ userId: string }>(token);
+        setUserId(decoded.userId);
+        setMounted(true);
+      } catch (e) {
+        toast.error("Session invalid. Please sign in again");
+        router.push("/login");
+      }
+    }
+  }, [router]);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
@@ -69,15 +87,9 @@ export default function CreateEventPage() {
   });
 
   const onSubmit = (data: EventFormValues) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem("accessToken") : null;
-    let userId = "";
-    if (token) {
-      try {
-        const decoded = jwtDecode<{ userId: string }>(token);
-        userId = decoded.userId;
-      } catch (e) {
-        console.error("JWT decoding failed", e);
-      }
+    if (!userId) {
+      toast.error("User session missing");
+      return;
     }
 
     const formData = new FormData();
@@ -104,17 +116,24 @@ export default function CreateEventPage() {
     mutation.mutate(formData);
   };
 
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <Card className="border-slate-200 shadow-md rounded-2xl overflow-hidden bg-white">
-        <div className="bg-slate-900 text-white p-6 relative overflow-hidden">
-          <div className="relative z-10 space-y-1">
-            <span className="inline-flex items-center gap-1 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-indigo-500/30">
+        <div className="bg-white border-b border-slate-100 p-6">
+          <div className="space-y-1.5">
+            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-indigo-100">
               <Sparkles className="h-3 w-3" /> Host Portal
             </span>
-            <CardTitle className="text-2xl font-bold tracking-tight text-white">Host a New Event</CardTitle>
+            <CardTitle className="text-2xl font-bold tracking-tight text-slate-900">Host a New Event</CardTitle>
           </div>
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-indigo-600/30 blur-2xl" />
         </div>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -122,7 +141,7 @@ export default function CreateEventPage() {
             {/* Title */}
             <div className="space-y-1.5">
               <Label htmlFor="title" className="font-semibold text-slate-700">Event Title</Label>
-              <Input id="title" placeholder="Web3 Developer Summit 2026" {...register("title")} className="focus-visible:ring-indigo-600 rounded-lg" />
+              <Input id="title" placeholder="Web3 Developer Summit 2026" {...register("title")} className="focus-visible:ring-indigo-600 rounded-lg bg-white text-slate-900 border-slate-200 placeholder:text-slate-400 h-11" />
               {errors.title && <p className="text-red-500 text-xs font-semibold mt-1">{errors.title.message}</p>}
             </div>
 
@@ -132,7 +151,7 @@ export default function CreateEventPage() {
               <select
                 id="category"
                 {...register("category")}
-                className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-600 text-slate-800"
+                className="flex h-11 w-full rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-600 text-slate-800"
               >
                 <option value="Technology">Technology</option>
                 <option value="Business">Business</option>
@@ -147,7 +166,7 @@ export default function CreateEventPage() {
             {/* Short Description */}
             <div className="space-y-1.5">
               <Label htmlFor="shortDescription" className="font-semibold text-slate-700">Short Description</Label>
-              <Input id="shortDescription" placeholder="A brief hook summary (max 100 chars)..." {...register("shortDescription")} className="focus-visible:ring-indigo-600 rounded-lg" />
+              <Input id="shortDescription" placeholder="A brief hook summary (max 100 chars)..." {...register("shortDescription")} className="focus-visible:ring-indigo-600 rounded-lg bg-white text-slate-900 border-slate-200 placeholder:text-slate-400 h-11" />
               {errors.shortDescription && <p className="text-red-500 text-xs font-semibold mt-1">{errors.shortDescription.message}</p>}
             </div>
 
@@ -159,7 +178,7 @@ export default function CreateEventPage() {
                 rows={4}
                 placeholder="Give a detailed description about schedule, hosts, and what attendees will learn..."
                 {...register("fullDescription")}
-                className="flex min-h-[100px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-600"
+                className="flex min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-600 text-slate-900 border-slate-200"
               />
               {errors.fullDescription && <p className="text-red-500 text-xs font-semibold mt-1">{errors.fullDescription.message}</p>}
             </div>
@@ -168,12 +187,12 @@ export default function CreateEventPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="date" className="font-semibold text-slate-700">Date</Label>
-                <Input id="date" type="date" {...register("date")} className="focus-visible:ring-indigo-600 rounded-lg" />
+                <Input id="date" type="date" {...register("date")} className="focus-visible:ring-indigo-600 rounded-lg bg-white text-slate-900 border-slate-200 h-11" />
                 {errors.date && <p className="text-red-500 text-xs font-semibold mt-1">{errors.date.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="time" className="font-semibold text-slate-700">Time</Label>
-                <Input id="time" type="time" {...register("time")} className="focus-visible:ring-indigo-600 rounded-lg" />
+                <Input id="time" type="time" {...register("time")} className="focus-visible:ring-indigo-600 rounded-lg bg-white text-slate-900 border-slate-200 h-11" />
                 {errors.time && <p className="text-red-500 text-xs font-semibold mt-1">{errors.time.message}</p>}
               </div>
             </div>
@@ -181,7 +200,7 @@ export default function CreateEventPage() {
             {/* Venue */}
             <div className="space-y-1.5">
               <Label htmlFor="venue" className="font-semibold text-slate-700">Venue</Label>
-              <Input id="venue" placeholder="Grand Ballroom or Zoom Link" {...register("venue")} className="focus-visible:ring-indigo-600 rounded-lg" />
+              <Input id="venue" placeholder="Grand Ballroom or Zoom Link" {...register("venue")} className="focus-visible:ring-indigo-600 rounded-lg bg-white text-slate-900 border-slate-200 placeholder:text-slate-400 h-11" />
               {errors.venue && <p className="text-red-500 text-xs font-semibold mt-1">{errors.venue.message}</p>}
             </div>
 
@@ -244,14 +263,21 @@ export default function CreateEventPage() {
             {isPaid && (
               <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-150">
                 <Label htmlFor="fee" className="font-semibold text-slate-700">Ticket Fee ($)</Label>
-                <Input id="fee" type="number" step="0.01" {...register("fee", { valueAsNumber: true })} className="focus-visible:ring-indigo-600 rounded-lg" />
+                <Input id="fee" type="number" step="0.01" {...register("fee", { valueAsNumber: true })} className="focus-visible:ring-indigo-600 rounded-lg bg-white text-slate-900 border-slate-200 h-11" />
                 {errors.fee && <p className="text-red-500 text-xs font-semibold mt-1">{errors.fee.message}</p>}
               </div>
             )}
 
             {/* Submit */}
-            <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 shadow-md font-semibold text-white py-2 rounded-lg cursor-pointer" disabled={mutation.isPending}>
-              {mutation.isPending ? "Creating Event..." : "Publish Event"}
+            <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 shadow-md font-semibold text-white py-2 rounded-lg cursor-pointer h-11 flex items-center justify-center gap-2" disabled={mutation.isPending}>
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <span>Creating Event...</span>
+                </>
+              ) : (
+                "Publish Event"
+              )}
             </Button>
           </form>
         </CardContent>

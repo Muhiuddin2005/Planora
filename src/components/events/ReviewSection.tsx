@@ -335,11 +335,9 @@ export default function ReviewSection({ eventId }: ReviewSectionProps) {
                                       confirmButtonColor: "#4f46e5",
                                       cancelButtonColor: "#ef4444",
                                       confirmButtonText: "Yes, delete review!",
-                                      background: "#0f172a",
-                                      color: "#f8fafc",
                                       iconColor: "#f59e0b",
                                       customClass: {
-                                        popup: "rounded-2xl border border-slate-800"
+                                        popup: "rounded-2xl border border-slate-200 shadow-xl bg-white"
                                       }
                                     }).then((result) => {
                                       if (result.isConfirmed) {
@@ -387,7 +385,7 @@ export default function ReviewSection({ eventId }: ReviewSectionProps) {
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Rating
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <button
@@ -408,7 +406,7 @@ export default function ReviewSection({ eventId }: ReviewSectionProps) {
                           </button>
                         ))}
                       </div>
-                      <span className="text-sm font-semibold text-slate-600 px-2 py-0.5 rounded bg-slate-100">
+                      <span className="text-sm font-semibold text-slate-600 px-2 py-0.5 rounded bg-slate-100 whitespace-nowrap">
                         {ratingDescriptions[(hoverRating ?? rating) - 1]}
                       </span>
                     </div>

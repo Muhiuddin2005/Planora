@@ -37,11 +37,9 @@ export default function AdminMessagesTable() {
       confirmButtonColor: "#4f46e5",
       cancelButtonColor: "#ef4444",
       confirmButtonText: "Yes, delete it!",
-      background: "#0f172a",
-      color: "#f8fafc",
       iconColor: "#f59e0b",
       customClass: {
-        popup: "rounded-2xl border border-slate-800"
+        popup: "rounded-2xl border border-slate-200 shadow-xl bg-white"
       }
     }).then((result) => {
       if (result.isConfirmed) {

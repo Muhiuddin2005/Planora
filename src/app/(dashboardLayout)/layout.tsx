@@ -10,7 +10,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="hidden md:block">
           <DashboardTopbar />
         </div>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pt-16 md:pt-6">
+        <main data-lenis-prevent className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pt-16 md:pt-6">
           {children}
         </main>
       </div>
