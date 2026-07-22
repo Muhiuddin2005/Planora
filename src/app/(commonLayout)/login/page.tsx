@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
-import { AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const EventAnimation = dynamic(
@@ -98,7 +98,7 @@ function LoginForm() {
       // Send them to the requested page or the dashboard
       router.push(redirectUrl);
     },
-    onError: async (error: unknown, variables: { email: string }) => {
+    onError: async (error: unknown, variables: { email: string; password?: string }) => {
       const err = error as { response?: { data?: { message?: string } } };
       const errorMessage = err.response?.data?.message || "Invalid login credentials";
 
@@ -121,6 +121,14 @@ function LoginForm() {
 
   const onSubmit = (formData: { email: string; password: string }) => {
     mutation.mutate(formData);
+  };
+
+  const handleDemoAdminLogin = () => {
+    const adminEmail = "admin@gmail.com";
+    const adminPassword = "123456aA!";
+    setValue("email", adminEmail, { shouldValidate: true });
+    setValue("password", adminPassword, { shouldValidate: true });
+    mutation.mutate({ email: adminEmail, password: adminPassword });
   };
 
   if (isCheckingAuth) {
@@ -243,6 +251,23 @@ function LoginForm() {
           </div>
           <Button type="submit" className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base" disabled={mutation.isPending}>
             {mutation.isPending ? "Logging in..." : "Login"}
+          </Button>
+
+          <div className="relative flex items-center justify-center pt-2 pb-1">
+            <div className="border-t border-slate-800 w-full"></div>
+            <span className="bg-slate-900/90 px-3 text-[11px] text-slate-500 font-semibold uppercase tracking-wider whitespace-nowrap absolute">
+              Quick Recruiter Access
+            </span>
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleDemoAdminLogin}
+            disabled={mutation.isPending}
+            className="w-full h-12 bg-gradient-to-r from-amber-500/10 via-amber-500/15 to-amber-500/10 hover:from-amber-500/20 hover:to-amber-500/20 border border-amber-500/40 text-amber-300 hover:text-amber-200 font-semibold text-base transition-all duration-200 flex items-center justify-center gap-2.5 shadow-lg shadow-amber-950/40"
+          >
+            <ShieldCheck className="h-5 w-5 text-amber-400" />
+            <span>Demo Admin (One-Click Login)</span>
           </Button>
         </form>
         
