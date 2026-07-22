@@ -10,16 +10,25 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, LayoutDashboard } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { jwtDecode } from "jwt-decode";
+import AdminDashboardPage from "./admin/page";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
       router.push("/login");
     } else {
+      try {
+        const decoded = jwtDecode<{ role: string }>(token);
+        setUserRole(decoded.role);
+      } catch (e) {
+        console.error("Token decoding failed in DashboardPage", e);
+      }
       const timer = setTimeout(() => {
         setMounted(true);
       }, 0);
@@ -30,13 +39,13 @@ export default function DashboardPage() {
   const { data: hostedData, isLoading: hostedLoading } = useQuery({
     queryKey: ["hostedEvents"],
     queryFn: async () => (await axiosInstance.get("/events/hosted")).data,
-    enabled: mounted,
+    enabled: mounted && userRole !== "ADMIN" && userRole !== "MODERATOR",
   });
 
   const { data: joinedData, isLoading: joinedLoading } = useQuery({
     queryKey: ["myRequests"],
     queryFn: async () => (await axiosInstance.get("/participations/my-requests")).data,
-    enabled: mounted,
+    enabled: mounted && userRole !== "ADMIN" && userRole !== "MODERATOR",
   });
 
   if (!mounted) {
@@ -45,6 +54,10 @@ export default function DashboardPage() {
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
       </div>
     );
+  }
+
+  if (userRole === "ADMIN" || userRole === "MODERATOR") {
+    return <AdminDashboardPage />;
   }
 
   return (
@@ -64,7 +77,6 @@ export default function DashboardPage() {
           </Button>
         </Link>
       </div>
-
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section className="bg-white p-6 rounded-xl border shadow-sm border-slate-200">
@@ -99,4 +111,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 
