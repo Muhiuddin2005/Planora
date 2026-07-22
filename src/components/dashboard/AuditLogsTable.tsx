@@ -3,15 +3,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { axiosInstance } from "@/lib/axiosInstance";
 import { format } from "date-fns";
-import { Clock, Shield, AlertTriangle, CheckCircle, XCircle, Trash2, UserMinus, UserCheck, ShieldAlert, Search } from "lucide-react";
+import { Clock, Shield, AlertTriangle, CheckCircle, XCircle, Trash2, UserMinus, UserCheck, ShieldAlert, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export default function AuditLogsTable() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  const queryParams: Record<string, any> = {
+    page,
+    limit,
+    sortBy: "createdAt",
+    sortOrder: "desc",
+  };
+  if (searchTerm.trim()) queryParams.searchTerm = searchTerm.trim();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["auditLogs"],
-    queryFn: async () => (await axiosInstance.get("/audit-logs")).data,
+    queryKey: ["auditLogs", page, searchTerm],
+    queryFn: async () => (await axiosInstance.get("/audit-logs", { params: queryParams })).data,
   });
 
   if (isLoading) {
@@ -26,12 +37,7 @@ export default function AuditLogsTable() {
   }
 
   const logs = data?.data || [];
-
-  // Filter logs based on search term
-  const filteredLogs = logs.filter((log: any) => {
-    const searchString = `${log.action} ${log.details || ""} ${log.user?.name || ""} ${log.user?.email || ""} ${log.targetName || ""}`.toLowerCase();
-    return searchString.includes(searchTerm.toLowerCase());
-  });
+  const meta = data?.meta || { page: 1, totalPages: 1, total: 0 };
 
   const getActionBadge = (action: string) => {
     switch (action) {
@@ -116,7 +122,7 @@ export default function AuditLogsTable() {
           <Clock className="h-5 w-5 text-indigo-600" />
           <div>
             <h2 className="text-lg font-bold text-slate-900">System Activity Logs</h2>
-            <p className="text-xs text-slate-500">Track and monitor moderation and administrative actions.</p>
+            <p className="text-xs text-slate-500">Track and monitor moderation and administrative actions (Total: {meta.total}).</p>
           </div>
         </div>
 
@@ -126,9 +132,12 @@ export default function AuditLogsTable() {
           </span>
           <input
             type="text"
-            placeholder="Search logs..."
+            placeholder="Search logs via QueryBuilder..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           />
         </div>
@@ -147,14 +156,14 @@ export default function AuditLogsTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filteredLogs.length === 0 ? (
+            {logs.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">
                   {searchTerm ? "No matching activity logs found." : "No activity logs recorded yet."}
                 </td>
               </tr>
             ) : (
-              filteredLogs.map((log: any) => (
+              logs.map((log: any) => (
                 <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
@@ -187,6 +196,32 @@ export default function AuditLogsTable() {
           </tbody>
         </table>
       </div>
+
+      {meta.totalPages > 1 && (
+        <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+          <span>Page {meta.page} of {meta.totalPages}</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="h-8 px-3"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" /> Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= meta.totalPages}
+              onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+              className="h-8 px-3"
+            >
+              Next <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
