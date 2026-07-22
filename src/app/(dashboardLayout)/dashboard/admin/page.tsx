@@ -7,7 +7,7 @@ import { axiosInstance } from "@/lib/axiosInstance";
 import {
   ShieldAlert, Trash2, AlertOctagon, Users, Calendar,
   DollarSign, TrendingUp, CheckCircle2, XCircle, Clock,
-  BarChart2, Eye,
+  BarChart2, Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -22,7 +22,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
-// ---------- Stat Card ----------
 function StatCard({
   icon: Icon,
   label,
@@ -83,6 +82,15 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "events" | "users" | "messages" | "logs">("overview");
   const [userRole, setUserRole] = useState<string | null>(null);
 
+  // QueryBuilder Controls State for Events Tab
+  const [eventSearch, setEventSearch] = useState("");
+  const [eventStatusFilter, setEventStatusFilter] = useState("ALL");
+  const [eventTypeFilter, setEventTypeFilter] = useState("ALL");
+  const [eventSortBy, setEventSortBy] = useState("createdAt");
+  const [eventSortOrder, setEventSortOrder] = useState<"asc" | "desc">("desc");
+  const [eventPage, setEventPage] = useState(1);
+  const eventLimit = 10;
+
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (token) {
@@ -120,9 +128,22 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  const adminEventQueryParams: Record<string, any> = {
+    page: eventPage,
+    limit: eventLimit,
+    sortBy: eventSortBy,
+    sortOrder: eventSortOrder,
+  };
+  if (eventSearch.trim()) adminEventQueryParams.searchTerm = eventSearch.trim();
+  if (eventStatusFilter !== "ALL") adminEventQueryParams.status = eventStatusFilter;
+  if (eventTypeFilter === "PUBLIC") adminEventQueryParams.isPublic = true;
+  if (eventTypeFilter === "PRIVATE") adminEventQueryParams.isPublic = false;
+  if (eventTypeFilter === "PAID") adminEventQueryParams.isPaid = true;
+  if (eventTypeFilter === "FREE") adminEventQueryParams.isPaid = false;
+
   const { data: eventsData, isLoading: eventsLoading } = useQuery({
-    queryKey: ["adminEvents"],
-    queryFn: getPublicEvents,
+    queryKey: ["adminEvents", adminEventQueryParams],
+    queryFn: () => getPublicEvents(adminEventQueryParams),
     enabled: !isUnauthorized,
   });
 
@@ -155,7 +176,6 @@ export default function AdminDashboardPage() {
     },
   });
 
-  // --- FORBIDDEN UI ---
   if (isUnauthorized) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
@@ -189,8 +209,8 @@ export default function AdminDashboardPage() {
   }
 
   const events = eventsData?.data || [];
+  const eventMeta = eventsData?.meta || { page: 1, totalPages: 1, total: 0 };
 
-  // Tab buttons config
   const tabs: { key: "overview" | "events" | "users" | "messages" | "logs"; label: string; icon: any }[] = [
     { key: "overview", label: "Overview", icon: BarChart2 },
     { key: "events", label: "Events", icon: Calendar },
@@ -209,7 +229,7 @@ export default function AdminDashboardPage() {
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-slate-900">Admin Control Center</h1>
-            <p className="text-xs text-slate-500">Monitor and moderate all platform activity.</p>
+            <p className="text-xs text-slate-500">Monitor and moderate all platform activity using QueryBuilder.</p>
           </div>
         </div>
       </div>
@@ -232,7 +252,7 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      {/* ========== OVERVIEW TAB ========== */}
+      {/* OVERVIEW TAB */}
       {activeTab === "overview" && (
         <div className="space-y-6">
           {statsLoading ? (
@@ -243,7 +263,6 @@ export default function AdminDashboardPage() {
             </div>
           ) : stats ? (
             <>
-              {/* Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 <StatCard icon={Users} label="Total Members" value={stats.totalMembers} sub="Registered users" color="bg-indigo-100 text-indigo-600" />
                 <StatCard icon={Calendar} label="Total Events" value={stats.totalEvents} sub="All time" color="bg-purple-100 text-purple-600" />
@@ -260,9 +279,7 @@ export default function AdminDashboardPage() {
                 <StatCard icon={TrendingUp} label="Categories" value={stats.categoryData?.length || 0} sub="Event types" color="bg-cyan-100 text-cyan-600" />
               </div>
 
-              {/* Charts Row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Area Chart - Events over time */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                   <h3 className="text-sm font-bold text-slate-900 mb-4">Events Created (Last 12 Months)</h3>
                   <ResponsiveContainer width="100%" height={220}>
@@ -285,7 +302,6 @@ export default function AdminDashboardPage() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Bar Chart - Events by status */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                   <h3 className="text-sm font-bold text-slate-900 mb-4">Event Moderation Status</h3>
                   <ResponsiveContainer width="100%" height={220}>
@@ -318,7 +334,6 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Pie Chart - Events by Category */}
               {stats.categoryData?.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                   <h3 className="text-sm font-bold text-slate-900 mb-2">Events by Category</h3>
@@ -368,15 +383,104 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* ========== EVENTS TAB ========== */}
+      {/* EVENTS TAB WITH QUERY BUILDER FILTERS */}
       {activeTab === "events" && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50">
-            <h2 className="text-base font-bold text-slate-900">Moderate Events</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Approve or reject event submissions.</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Moderate Events</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Approve, reject, or manage event submissions.</p>
+              </div>
+              <span className="text-xs font-semibold text-slate-500 bg-slate-200/60 px-2.5 py-1 rounded-full">
+                Total Events: {eventMeta.total}
+              </span>
+            </div>
+
+            {/* QueryBuilder Controls Toolbar */}
+            <div className="flex flex-col md:flex-row gap-3 pt-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search events by title, venue, host..."
+                  value={eventSearch}
+                  onChange={(e) => {
+                    setEventSearch(e.target.value);
+                    setEventPage(1);
+                  }}
+                  className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 text-xs text-slate-500 shrink-0">
+                  <Filter className="h-3.5 w-3.5" />
+                  Status:
+                </div>
+                <select
+                  value={eventStatusFilter}
+                  onChange={(e) => {
+                    setEventStatusFilter(e.target.value);
+                    setEventPage(1);
+                  }}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+
+                <div className="flex items-center gap-1 text-xs text-slate-500 shrink-0 ml-1">
+                  Type:
+                </div>
+                <select
+                  value={eventTypeFilter}
+                  onChange={(e) => {
+                    setEventTypeFilter(e.target.value);
+                    setEventPage(1);
+                  }}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="ALL">All Types</option>
+                  <option value="PUBLIC">Public</option>
+                  <option value="PRIVATE">Private</option>
+                  <option value="PAID">Paid</option>
+                  <option value="FREE">Free</option>
+                </select>
+
+                <div className="flex items-center gap-1 text-xs text-slate-500 shrink-0 ml-1">
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  Sort:
+                </div>
+                <select
+                  value={eventSortBy}
+                  onChange={(e) => {
+                    setEventSortBy(e.target.value);
+                    setEventPage(1);
+                  }}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="createdAt">Created Date</option>
+                  <option value="title">Title</option>
+                  <option value="date">Event Date</option>
+                  <option value="fee">Fee</option>
+                </select>
+
+                <button
+                  onClick={() => setEventSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
+                  className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 cursor-pointer"
+                  title="Toggle order"
+                >
+                  {eventSortOrder.toUpperCase()}
+                </button>
+              </div>
+            </div>
           </div>
+
           {eventsLoading ? (
-            <div className="p-8 animate-pulse text-indigo-600 font-semibold text-sm">Loading events...</div>
+            <div className="p-8 animate-pulse text-indigo-600 font-semibold text-sm">Loading events with QueryBuilder...</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
@@ -384,7 +488,7 @@ export default function AdminDashboardPage() {
                   <tr>
                     <th className="px-4 py-3 text-xs">Event Title</th>
                     <th className="px-4 py-3 text-xs hidden sm:table-cell">Date</th>
-                    <th className="px-4 py-3 text-xs">Type</th>
+                    <th className="px-4 py-3 text-xs">Type &amp; Fee</th>
                     <th className="px-4 py-3 text-xs">Status</th>
                     <th className="px-4 py-3 text-xs text-right">Actions</th>
                   </tr>
@@ -392,8 +496,11 @@ export default function AdminDashboardPage() {
                 <tbody className="divide-y divide-slate-100">
                   {events.map((event: any) => (
                     <tr key={event.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900 max-w-[180px]">
-                        <p className="truncate text-sm">{event.title}</p>
+                      <td className="px-4 py-3 font-medium text-slate-900 max-w-[200px]">
+                        <p className="truncate text-sm font-semibold">{event.title}</p>
+                        {event.owner?.name && (
+                          <p className="text-[10px] text-slate-400 truncate">Host: {event.owner.name}</p>
+                        )}
                         {event.rejectionReason && (
                           <p className="text-[10px] text-red-500 italic mt-0.5 truncate">Reason: {event.rejectionReason}</p>
                         )}
@@ -402,9 +509,14 @@ export default function AdminDashboardPage() {
                         {event.date ? format(new Date(event.date), "PP") : "N/A"}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${event.isPublic ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-700"}`}>
-                          {event.isPublic ? "PUBLIC" : "PRIVATE"}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold w-fit ${event.isPublic ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-700"}`}>
+                            {event.isPublic ? "PUBLIC" : "PRIVATE"}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {event.isPaid ? `$${event.fee}` : "Free"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -499,12 +611,12 @@ export default function AdminDashboardPage() {
                                 } else if (result.dismiss === Swal.DismissReason.cancel) {
                                   Swal.fire({
                                     title: "Approve Event?",
-                                    text: "This event will be published and made visible to all users.",
+                                    text: `Make "${event.title}" live for participants?`,
                                     icon: "question",
                                     showCancelButton: true,
                                     confirmButtonColor: "#10b981",
                                     cancelButtonColor: "#64748b",
-                                    confirmButtonText: "Yes, approve!",
+                                    confirmButtonText: "Approve Event",
                                     iconColor: "#10b981",
                                     customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
                                   }).then((approveResult) => {
@@ -516,83 +628,32 @@ export default function AdminDashboardPage() {
                               });
                             }}
                           >
-                            <Eye className="h-3.5 w-3.5" />
+                            Details
                           </Button>
-                          {event.status !== "APPROVED" && event.status !== "REJECTED" && (
-                            <>
-                              <Button
-                                variant="outline" size="sm"
-                                className="text-green-600 border-green-200 hover:bg-green-50 text-xs h-7 px-2"
-                                onClick={() => {
-                                  Swal.fire({
-                                    title: "Approve Event?",
-                                    text: "This event will be published and made visible to all users.",
-                                    icon: "question",
-                                    showCancelButton: true,
-                                    confirmButtonColor: "#10b981",
-                                    cancelButtonColor: "#64748b",
-                                    confirmButtonText: "Yes, approve!",
-                                    iconColor: "#10b981",
-                                    customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
-                                  }).then((result) => {
-                                    if (result.isConfirmed) statusMutation.mutate({ eventId: event.id, status: "APPROVED" });
-                                  });
-                                }}
-                                disabled={statusMutation.isPending}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                variant="outline" size="sm"
-                                className="text-red-600 border-red-200 hover:bg-red-50 text-xs h-7 px-2"
-                                onClick={() => {
-                                  Swal.fire({
-                                    title: "Reject Event?",
-                                    text: "Please provide a reason to inform the event creator:",
-                                    input: "text",
-                                    inputPlaceholder: "Reason for rejection...",
-                                    icon: "warning",
-                                    showCancelButton: true,
-                                    confirmButtonColor: "#ef4444",
-                                    cancelButtonColor: "#64748b",
-                                    confirmButtonText: "Reject Event",
-                                    iconColor: "#ef4444",
-                                    customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
-                                    inputValidator: (value) => { if (!value) return "You must write a reason!"; },
-                                  }).then((result) => {
-                                    if (result.isConfirmed && result.value) {
-                                      statusMutation.mutate({ eventId: event.id, status: "REJECTED", rejectionReason: result.value });
-                                    }
-                                  });
-                                }}
-                                disabled={statusMutation.isPending}
-                              >
-                                Reject
-                              </Button>
-                            </>
+
+                          {userRole === "ADMIN" && (
+                            <Button
+                              variant="destructive" size="sm"
+                              className="text-xs h-7 px-2"
+                              onClick={() => {
+                                Swal.fire({
+                                  title: "Delete Event Globally?",
+                                  text: `Permanently delete "${event.title}"?`,
+                                  icon: "warning",
+                                  showCancelButton: true,
+                                  confirmButtonColor: "#ef4444",
+                                  cancelButtonColor: "#64748b",
+                                  confirmButtonText: "Yes, delete!",
+                                  customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
+                                }).then((res) => {
+                                  if (res.isConfirmed) deleteMutation.mutate(event.id);
+                                });
+                              }}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                            </Button>
                           )}
-                          <Button
-                            variant="destructive" size="sm"
-                            className="text-xs h-7 px-2"
-                            onClick={() => {
-                              Swal.fire({
-                                title: "Force Delete Event?",
-                                text: "ADMIN OVERRIDE: This event will be permanently deleted!",
-                                icon: "warning",
-                                showCancelButton: true,
-                                confirmButtonColor: "#4f46e5",
-                                cancelButtonColor: "#ef4444",
-                                confirmButtonText: "Yes, force delete!",
-                                iconColor: "#f59e0b",
-                                customClass: { popup: "rounded-2xl border border-slate-200 shadow-xl bg-white" },
-                              }).then((result) => {
-                                if (result.isConfirmed) deleteMutation.mutate(event.id);
-                              });
-                            }}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -600,24 +661,50 @@ export default function AdminDashboardPage() {
                 </tbody>
               </table>
               {events.length === 0 && (
-                <div className="py-16 text-center text-slate-400">
-                  <Calendar className="h-8 w-8 mx-auto mb-2 text-slate-200" />
-                  <p className="text-sm font-semibold">No events found</p>
+                <div className="py-12 text-center text-slate-400">
+                  <p className="text-sm font-semibold">No events found matching query criteria.</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Pagination Footer */}
+          {eventMeta.totalPages > 1 && (
+            <div className="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+              <span>Page {eventMeta.page} of {eventMeta.totalPages}</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={eventPage <= 1}
+                  onClick={() => setEventPage((p) => Math.max(1, p - 1))}
+                  className="h-7 px-2"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prev
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={eventPage >= eventMeta.totalPages}
+                  onClick={() => setEventPage((p) => Math.min(eventMeta.totalPages, p + 1))}
+                  className="h-7 px-2"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* ========== USERS TAB ========== */}
+      {/* USERS TAB */}
       {activeTab === "users" && <UserManagementTable />}
 
-      {/* ========== MESSAGES TAB ========== */}
+      {/* MESSAGES TAB */}
       {activeTab === "messages" && <AdminMessagesTable />}
 
-      {/* ========== AUDIT LOGS TAB ========== */}
-      {activeTab === "logs" && <AuditLogsTable />}
+      {/* LOGS TAB */}
+      {activeTab === "logs" && userRole === "ADMIN" && <AuditLogsTable />}
     </div>
   );
 }
