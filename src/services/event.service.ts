@@ -1,7 +1,7 @@
 import { axiosInstance } from "@/lib/axiosInstance";
 
-export const getPublicEvents = async () => {
-  const response = await axiosInstance.get("/events");
+export const getPublicEvents = async (params?: Record<string, any>) => {
+  const response = await axiosInstance.get("/events", { params });
   return response.data;
 };
 
@@ -42,5 +42,3 @@ export const getAdminStats = async () => {
   const response = await axiosInstance.get("/events/admin/stats");
   return response.data?.data;
 };
-
-
