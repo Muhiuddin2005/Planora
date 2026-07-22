@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { jwtDecode } from "jwt-decode";
 import { useQuery } from "@tanstack/react-query";
 import { getPublicEvents } from "@/services/event.service";
@@ -13,6 +13,7 @@ import { Search, Calendar, MapPin, Tag, SlidersHorizontal, Sparkles, User } from
 import Image from "next/image";
 import { ScrollReveal, Magnetic } from "@/components/shared/ScrollReveal";
 import { motion } from "framer-motion";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 interface PublicEventItem {
   id: string;
@@ -30,10 +31,16 @@ interface PublicEventItem {
   };
 }
 
-export default function ExploreEventsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [organizerQuery, setOrganizerQuery] = useState("");
-  const [filterType, setFilterType] = useState<"ALL" | "PUBLIC_FREE" | "PUBLIC_PAID" | "PRIVATE_FREE" | "PRIVATE_PAID">("ALL");
+function ExploreEventsContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("searchTerm") || "");
+  const [organizerQuery, setOrganizerQuery] = useState(searchParams.get("owner.name") || "");
+  const [filterType, setFilterType] = useState<"ALL" | "PUBLIC_FREE" | "PUBLIC_PAID" | "PRIVATE_FREE" | "PRIVATE_PAID">(
+    (searchParams.get("filter") as any) || "ALL"
+  );
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -52,32 +59,57 @@ export default function ExploreEventsPage() {
     }
   }, []);
 
+  // Update browser URL search query parameters dynamically
+  const updateUrlQueryParams = (search: string, organizer: string, filter: string) => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("searchTerm", search.trim());
+    if (organizer.trim()) params.set("owner.name", organizer.trim());
+    if (filter !== "ALL") params.set("filter", filter);
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    updateUrlQueryParams(val, organizerQuery, filterType);
+  };
+
+  const handleOrganizerChange = (val: string) => {
+    setOrganizerQuery(val);
+    updateUrlQueryParams(searchQuery, val, filterType);
+  };
+
+  const handleFilterChange = (val: "ALL" | "PUBLIC_FREE" | "PUBLIC_PAID" | "PRIVATE_FREE" | "PRIVATE_PAID") => {
+    setFilterType(val);
+    updateUrlQueryParams(searchQuery, organizerQuery, val);
+  };
+
+  // Build QueryBuilder API query payload for backend
+  const apiQueryParams: Record<string, any> = {};
+  if (searchQuery.trim()) apiQueryParams.searchTerm = searchQuery.trim();
+  if (organizerQuery.trim()) apiQueryParams["owner.name"] = organizerQuery.trim();
+  if (filterType === "PUBLIC_FREE") {
+    apiQueryParams.isPublic = true;
+    apiQueryParams.isPaid = false;
+  } else if (filterType === "PUBLIC_PAID") {
+    apiQueryParams.isPublic = true;
+    apiQueryParams.isPaid = true;
+  } else if (filterType === "PRIVATE_FREE") {
+    apiQueryParams.isPublic = false;
+    apiQueryParams.isPaid = false;
+  } else if (filterType === "PRIVATE_PAID") {
+    apiQueryParams.isPublic = false;
+    apiQueryParams.isPaid = true;
+  }
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["publicEvents"],
-    queryFn: getPublicEvents,
+    queryKey: ["publicEvents", searchQuery, organizerQuery, filterType],
+    queryFn: () => getPublicEvents(apiQueryParams),
   });
 
   const events: PublicEventItem[] = data?.data || [];
-
-  // Filter and search logic
-  const filteredEvents = events.filter((event) => {
-    const matchesSearch =
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.venue.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const organizerName = event.owner?.name || "";
-    const matchesOrganizer = organizerName.toLowerCase().startsWith(organizerQuery.toLowerCase());
-
-    const matchesFilter =
-      filterType === "ALL" ||
-      (filterType === "PUBLIC_FREE" && event.isPublic && !event.isPaid) ||
-      (filterType === "PUBLIC_PAID" && event.isPublic && event.isPaid) ||
-      (filterType === "PRIVATE_FREE" && !event.isPublic && !event.isPaid) ||
-      (filterType === "PRIVATE_PAID" && !event.isPublic && event.isPaid);
-
-    return matchesSearch && matchesOrganizer && matchesFilter;
-  });
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-7xl">
@@ -124,7 +156,7 @@ export default function ExploreEventsPage() {
               type="text"
               placeholder="Search events, venues, or descriptions..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10 bg-white border-slate-200 focus-visible:ring-indigo-600 cursor-pointer"
             />
           </div>
@@ -134,7 +166,7 @@ export default function ExploreEventsPage() {
               type="text"
               placeholder="Filter by Organizer Name..."
               value={organizerQuery}
-              onChange={(e) => setOrganizerQuery(e.target.value)}
+              onChange={(e) => handleOrganizerChange(e.target.value)}
               className="pl-10 bg-white border-slate-200 focus-visible:ring-indigo-600 cursor-pointer"
             />
           </div>
@@ -149,7 +181,7 @@ export default function ExploreEventsPage() {
             <Button
               variant={filterType === "ALL" ? "default" : "outline"}
               size="sm"
-              onClick={() => setFilterType("ALL")}
+              onClick={() => handleFilterChange("ALL")}
               className={filterType === "ALL" ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer" : "cursor-pointer"}
             >
               All Events
@@ -159,7 +191,7 @@ export default function ExploreEventsPage() {
             <Button
               variant={filterType === "PUBLIC_FREE" ? "default" : "outline"}
               size="sm"
-              onClick={() => setFilterType("PUBLIC_FREE")}
+              onClick={() => handleFilterChange("PUBLIC_FREE")}
               className={filterType === "PUBLIC_FREE" ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer" : "cursor-pointer"}
             >
               Public Free
@@ -169,7 +201,7 @@ export default function ExploreEventsPage() {
             <Button
               variant={filterType === "PUBLIC_PAID" ? "default" : "outline"}
               size="sm"
-              onClick={() => setFilterType("PUBLIC_PAID")}
+              onClick={() => handleFilterChange("PUBLIC_PAID")}
               className={filterType === "PUBLIC_PAID" ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer" : "cursor-pointer"}
             >
               Public Paid
@@ -181,7 +213,7 @@ export default function ExploreEventsPage() {
                 <Button
                   variant={filterType === "PRIVATE_FREE" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setFilterType("PRIVATE_FREE")}
+                  onClick={() => handleFilterChange("PRIVATE_FREE")}
                   className={filterType === "PRIVATE_FREE" ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer" : "cursor-pointer"}
                 >
                   Private Free
@@ -191,7 +223,7 @@ export default function ExploreEventsPage() {
                 <Button
                   variant={filterType === "PRIVATE_PAID" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setFilterType("PRIVATE_PAID")}
+                  onClick={() => handleFilterChange("PRIVATE_PAID")}
                   className={filterType === "PRIVATE_PAID" ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer" : "cursor-pointer"}
                 >
                   Private Paid
@@ -219,7 +251,7 @@ export default function ExploreEventsPage() {
           <p className="text-red-700 font-semibold text-sm">Failed to load public events.</p>
           <p className="text-xs text-red-500 mt-1">Please make sure the backend database and API server are running.</p>
         </div>
-      ) : filteredEvents.length === 0 ? (
+      ) : events.length === 0 ? (
         <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 max-w-lg mx-auto p-6 space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
             <Search className="h-6 w-6" />
@@ -236,6 +268,7 @@ export default function ExploreEventsPage() {
                 setSearchQuery("");
                 setOrganizerQuery("");
                 setFilterType("ALL");
+                router.replace(pathname, { scroll: false });
               }}
               className="cursor-pointer"
             >
@@ -245,7 +278,7 @@ export default function ExploreEventsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event, index) => {
+          {events.map((event, index) => {
             let shortDesc = "";
             let imageSrc = "";
             try {
@@ -332,5 +365,17 @@ export default function ExploreEventsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ExploreEventsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+      </div>
+    }>
+      <ExploreEventsContent />
+    </Suspense>
   );
 }

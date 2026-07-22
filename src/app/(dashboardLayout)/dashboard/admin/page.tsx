@@ -91,7 +91,36 @@ export default function AdminDashboardPage() {
   const [eventPage, setEventPage] = useState(1);
   const eventLimit = 10;
 
+  // Sync state to browser URL search query parameters
+  const updateUrlQueryParams = (tab: string, search: string, status: string, type: string, page: number) => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    params.set("tab", tab);
+    if (search.trim()) params.set("searchTerm", search.trim());
+    if (status !== "ALL") params.set("status", status);
+    if (type !== "ALL") params.set("type", type);
+    if (page > 1) params.set("page", page.toString());
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, "", newUrl);
+  };
+
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get("tab") as any;
+      if (tabParam && ["overview", "events", "users", "messages", "logs"].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+      const searchParam = urlParams.get("searchTerm");
+      if (searchParam) setEventSearch(searchParam);
+      const statusParam = urlParams.get("status");
+      if (statusParam) setEventStatusFilter(statusParam);
+      const typeParam = urlParams.get("type");
+      if (typeParam) setEventTypeFilter(typeParam);
+      const pageParam = urlParams.get("page");
+      if (pageParam && !isNaN(Number(pageParam))) setEventPage(Number(pageParam));
+    }
+
     const token = localStorage.getItem("accessToken");
     if (token) {
       try {
@@ -127,6 +156,34 @@ export default function AdminDashboardPage() {
       window.location.href = "/login";
     }
   }, []);
+
+  const handleTabChange = (tab: "overview" | "events" | "users" | "messages" | "logs") => {
+    setActiveTab(tab);
+    updateUrlQueryParams(tab, eventSearch, eventStatusFilter, eventTypeFilter, eventPage);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setEventSearch(val);
+    setEventPage(1);
+    updateUrlQueryParams(activeTab, val, eventStatusFilter, eventTypeFilter, 1);
+  };
+
+  const handleStatusFilterChange = (val: string) => {
+    setEventStatusFilter(val);
+    setEventPage(1);
+    updateUrlQueryParams(activeTab, eventSearch, val, eventTypeFilter, 1);
+  };
+
+  const handleTypeFilterChange = (val: string) => {
+    setEventTypeFilter(val);
+    setEventPage(1);
+    updateUrlQueryParams(activeTab, eventSearch, eventStatusFilter, val, 1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setEventPage(newPage);
+    updateUrlQueryParams(activeTab, eventSearch, eventStatusFilter, eventTypeFilter, newPage);
+  };
 
   const adminEventQueryParams: Record<string, any> = {
     page: eventPage,
@@ -239,7 +296,7 @@ export default function AdminDashboardPage() {
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => handleTabChange(key)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex-1 justify-center cursor-pointer ${
               activeTab === key
                 ? "bg-white text-slate-900 shadow-sm"
@@ -405,10 +462,7 @@ export default function AdminDashboardPage() {
                   type="text"
                   placeholder="Search events by title, venue, host..."
                   value={eventSearch}
-                  onChange={(e) => {
-                    setEventSearch(e.target.value);
-                    setEventPage(1);
-                  }}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -420,10 +474,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <select
                   value={eventStatusFilter}
-                  onChange={(e) => {
-                    setEventStatusFilter(e.target.value);
-                    setEventPage(1);
-                  }}
+                  onChange={(e) => handleStatusFilterChange(e.target.value)}
                   className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="ALL">All Statuses</option>
@@ -437,10 +488,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <select
                   value={eventTypeFilter}
-                  onChange={(e) => {
-                    setEventTypeFilter(e.target.value);
-                    setEventPage(1);
-                  }}
+                  onChange={(e) => handleTypeFilterChange(e.target.value)}
                   className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="ALL">All Types</option>
@@ -458,7 +506,6 @@ export default function AdminDashboardPage() {
                   value={eventSortBy}
                   onChange={(e) => {
                     setEventSortBy(e.target.value);
-                    setEventPage(1);
                   }}
                   className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
@@ -677,7 +724,7 @@ export default function AdminDashboardPage() {
                   variant="outline"
                   size="sm"
                   disabled={eventPage <= 1}
-                  onClick={() => setEventPage((p) => Math.max(1, p - 1))}
+                  onClick={() => handlePageChange(Math.max(1, eventPage - 1))}
                   className="h-7 px-2"
                 >
                   <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prev
@@ -686,7 +733,7 @@ export default function AdminDashboardPage() {
                   variant="outline"
                   size="sm"
                   disabled={eventPage >= eventMeta.totalPages}
-                  onClick={() => setEventPage((p) => Math.min(eventMeta.totalPages, p + 1))}
+                  onClick={() => handlePageChange(Math.min(eventMeta.totalPages, eventPage + 1))}
                   className="h-7 px-2"
                 >
                   Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
