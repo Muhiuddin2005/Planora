@@ -52,6 +52,29 @@ function StatCard({
 
 const PIE_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"];
 
+const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+  if (!percent || percent < 0.04) return null;
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#ffffff"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={12}
+      fontWeight="bold"
+      className="pointer-events-none drop-shadow-sm"
+    >
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
   const [isUnauthorized, setIsUnauthorized] = useState(false);
@@ -298,20 +321,20 @@ export default function AdminDashboardPage() {
               {/* Pie Chart - Events by Category */}
               {stats.categoryData?.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-sm font-bold text-slate-900 mb-4">Events by Category</h3>
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <ResponsiveContainer width="100%" height={220}>
-                      <PieChart>
+                  <h3 className="text-sm font-bold text-slate-900 mb-2">Events by Category</h3>
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                         <Pie
                           data={stats.categoryData}
                           dataKey="count"
                           nameKey="name"
                           cx="50%"
-                          cy="50%"
-                          outerRadius={90}
-                          innerRadius={50}
+                          cy="42%"
+                          outerRadius={80}
+                          innerRadius={45}
                           paddingAngle={3}
-                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                          label={renderPieLabel}
                           labelLine={false}
                         >
                           {stats.categoryData.map((_: any, i: number) => (
@@ -320,11 +343,20 @@ export default function AdminDashboardPage() {
                         </Pie>
                         <Tooltip
                           contentStyle={{ background: "#0f172a", border: "none", borderRadius: 10, color: "#f8fafc", fontSize: 12 }}
+                          formatter={(value: any, name: any) => [`${value} events`, name]}
                         />
                         <Legend
+                          verticalAlign="bottom"
                           iconType="circle"
                           iconSize={8}
-                          formatter={(value) => <span className="text-xs text-slate-600">{value}</span>}
+                          formatter={(value: string) => {
+                            const item = stats.categoryData?.find((c: any) => c.name === value);
+                            return (
+                              <span className="text-xs font-medium text-slate-700 mx-1">
+                                {value} {item ? <span className="text-slate-400 font-normal">({item.count})</span> : null}
+                              </span>
+                            );
+                          }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
